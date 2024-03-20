@@ -26,8 +26,8 @@ pub struct PanOrbitCamera {
     pub radius: f32,
     pub upside_down: bool,
 
-    pub orbit_button: MouseButton,
-    pub pan_button: MouseButton,
+    pub orbit_button: ModifierAndMouseButton,
+    pub pan_button: ModifierAndMouseButton,
 }
 
 impl Default for PanOrbitCamera {
@@ -39,9 +39,34 @@ impl Default for PanOrbitCamera {
             radius: 5.0,
             upside_down: false,
 
-            orbit_button: MouseButton::Right,
-            pan_button: MouseButton::Middle,
+            orbit_button: ModifierAndMouseButton {
+                modifier: None,
+                mouse_button: MouseButton::Right,
+            },
+            pan_button: ModifierAndMouseButton {
+                modifier: None,
+                mouse_button: MouseButton::Middle,
+            },
         }
+    }
+}
+
+pub struct ModifierAndMouseButton {
+    pub modifier: Option<KeyCode>,
+    pub mouse_button: MouseButton,
+}
+
+impl ModifierAndMouseButton {
+    pub fn is_pressed(
+        &self,
+        input_mouse: &ButtonInput<MouseButton>,
+        input_keyboard: &ButtonInput<KeyCode>,
+    ) -> bool {
+        input_mouse.pressed(self.mouse_button)
+            && self
+                .modifier
+                .map(|modifier| input_keyboard.pressed(modifier))
+                .unwrap_or(true)
     }
 }
 
@@ -57,6 +82,7 @@ fn pan_orbit_camera(
     mut ev_motion: EventReader<MouseMotion>,
     mut ev_scroll: EventReader<MouseWheel>,
     input_mouse: Res<ButtonInput<MouseButton>>,
+    input_keyboard: Res<ButtonInput<KeyCode>>,
     mut query: Query<(&mut PanOrbitCamera, &mut Transform, &Projection)>,
 ) {
     let Ok(window) = window.get(editor.window()) else {
@@ -81,11 +107,17 @@ fn pan_orbit_camera(
     let mut scroll = 0.0;
     let mut orbit_button_changed = false;
 
-    if input_mouse.pressed(pan_orbit.orbit_button) {
+    if pan_orbit
+        .orbit_button
+        .is_pressed(&input_mouse, &input_keyboard)
+    {
         for ev in ev_motion.read() {
             rotation_move += ev.delta;
         }
-    } else if input_mouse.pressed(pan_orbit.pan_button) {
+    } else if pan_orbit
+        .pan_button
+        .is_pressed(&input_mouse, &input_keyboard)
+    {
         // Pan only if we're not rotating at the moment
         for ev in ev_motion.read() {
             pan += ev.delta;
@@ -98,8 +130,8 @@ fn pan_orbit_camera(
     for ev in ev_scroll.read() {
         scroll += ev.y;
     }
-    if input_mouse.just_released(pan_orbit.orbit_button)
-        || input_mouse.just_pressed(pan_orbit.orbit_button)
+    if input_mouse.just_released(pan_orbit.orbit_button.mouse_button)
+        || input_mouse.just_pressed(pan_orbit.orbit_button.mouse_button)
     {
         orbit_button_changed = true;
     }
